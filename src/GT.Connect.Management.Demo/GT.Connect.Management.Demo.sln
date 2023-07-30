@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.6.33829.357
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GT.Connect.Management.Demo", "GT.Connect.Management.Demo.csproj", "{20AD29BA-675F-43D1-BA56-616F5B33941E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{20AD29BA-675F-43D1-BA56-616F5B33941E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{20AD29BA-675F-43D1-BA56-616F5B33941E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{20AD29BA-675F-43D1-BA56-616F5B33941E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{20AD29BA-675F-43D1-BA56-616F5B33941E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {38C4B0A3-5A8C-414D-B94C-98726D1CB91C}
+	EndGlobalSection
+EndGlobal
