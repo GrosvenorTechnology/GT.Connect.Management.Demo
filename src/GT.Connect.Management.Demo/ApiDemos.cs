@@ -274,16 +274,19 @@ public class ApiDemos : ApiTestBase
             new(new(nameof(NodeResponse.NodeType), NodeType.Company.ToString(), Operators.Equals))))
             .Single(x => x.Name == "InGen");
 
+        //First we need to request an upload url from the server 
         var uploadUrl = await api.GetUploadPackageUrl(Settings.TenantId,
             new GetUploadUrlCommand(Settings.TenantId, gtApplicationFileType, appFileName, "GT-EasyClock (2.8.0)"));
 
+        //Next we PUT the file to the server  
         using var fileReader = new StreamReader(appFileName);
         var client = new HttpClient();
         var request = new HttpRequestMessage(HttpMethod.Put, uploadUrl.Url);
         request.Content = new StreamContent(fileReader.BaseStream);
-        request.Headers.Add("x-ms-blob-type", "BlockBlob");
+        request.Headers.Add("x-ms-blob-type", "BlockBlob");  //the target is azure blob storage and needs this header
         var uploadResponse = await client.SendAsync(request);
 
+        //Once the file is uploaded, the server needs to process the file, so we need to poll till it's finished
         GetUploadStatusResponse statusResponse;
         do
         {
@@ -298,11 +301,9 @@ public class ApiDemos : ApiTestBase
             Assert.Fail($"{statusResponse.State} : {statusResponse.FaultSummary}");
         }
 
+        //Now get the uploaded package ID
         var response = await api.GetPackages(Settings.TenantId);
         await response.EnsureSuccessStatusCodeAsync();
-
-        //The GetConfigurationOnNode function retuns a 204 if there is no content,
-        //  Refit does not like that when deserializing the response content, so have to check explicitly
         GetPackagesResponse? package = default;
         if (response.StatusCode == System.Net.HttpStatusCode.OK)
         {
@@ -317,6 +318,7 @@ public class ApiDemos : ApiTestBase
             Assert.Fail("Could not find package after upload");
         }
 
+        //Link the application to a node so we can send to the device
         var link = await api.AddPackageToDeviceOrNode(Settings.TenantId, 
             new AddPackageToDeviceOrNodeCommand(Settings.TenantId, package.Id, cmpNode.Id, null, 
             "GT EasyClock (2.8.0)", package.FileTypeId));
