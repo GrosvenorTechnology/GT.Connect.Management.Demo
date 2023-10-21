@@ -5,36 +5,24 @@ namespace GT.Connect.Management.Demo.ConnectApi.DeviceConfig;
 [Headers("Authorization: Bearer")]
 public interface IConnectApiApplicationPackage
 {
-    //[Get("/api/tenants/{tenantId}/device-config/devices/node/{nodeId}")]
-    //Task<ApiResponse<List<Device>>> GetDevices(Guid tenantId, int nodeId, [Query] SeiveQueryParams? qparams = null);
-
-    //[Get("/api/tenants/{tenantId}/device-config/devices/{deviceId}")]
-    //Task<Device> GetDevice(Guid tenantId, Guid deviceId);
-
-    //[Post("/api/tenants/{command.TenantId}/device-config/devices")]
-    //Task<Device> AddDevice([Body] AddDeviceCommand command);
-
-    //[Put("/api/tenants/{command.TenantId}/device-config/devices/{command.Id}")]
-    //Task<Device> UpdateDevice([Body] UpdateDeviceCommand command);
-
-    //[Delete("/api/tenants/{tenantId}/device-config/devices/{deviceId}")]
-    //Task RemoveDevice(Guid tenantId, Guid deviceId);
-
-
-    //[Get("/api/tenants/{tenantId}/device-config/configuration/node/{nodeId}")]
-    //Task<ApiResponse<List<DeviceConfiguration>>> GetConfigurationOnNode(Guid tenantId, int nodeId);
-
     [Post("/api/tenants/{tenantId}/app-package/Storage/asset-url")]
-    Task<GetAssetUploadUrlResponse> GetUploadAssetUrl(Guid tenantId, [Body] GetAssetUploadUrlCommand command);
+    Task<GetUploadUrlResponse> GetUploadAssetUrl(Guid tenantId, [Body] GetUploadUrlCommand command);
+
+    [Post("/api/tenants/{tenantId}/app-package/Storage/package-url")]
+    Task<GetUploadUrlResponse> GetUploadPackageUrl(Guid tenantId, [Body] GetUploadUrlCommand command);
 
     [Get("/api/tenants/{tenantId}/app-package/Storage/status/{uploadId}")]
     Task<GetUploadStatusResponse> GetUploadStatus(Guid tenantId, Guid uploadId);
 
     [Get("/api/tenants/{tenantId}/app-package/assets")]
     Task<ApiResponse<List<GetAssetsResponse>>> GetAssets(Guid tenantId);
+
+    [Get("/api/tenants/{tenantId}/app-package/packages")]
+    Task<ApiResponse<List<GetPackagesResponse>>> GetPackages(Guid tenantId);
+
 }
 
-public record GetAssetUploadUrlCommand
+public record GetUploadUrlCommand
 (
     Guid TenantId,
     Guid FileTypeId,
@@ -42,7 +30,7 @@ public record GetAssetUploadUrlCommand
     string DisplayName
 );
 
-public record GetAssetUploadUrlResponse
+public record GetUploadUrlResponse
 (
     Guid Id,
     string Url
@@ -70,6 +58,30 @@ public record GetAssetsResponse
     Guid FileTypeId,
     string AssetState,
     long FileSize,
+    Guid Id,
+    Guid CreatedById,
+    DateTimeOffset CreatedOn,
+    Guid LastModifiedById,
+    DateTimeOffset LastModifiedOn
+);
+
+public record GetPackagesResponse
+(
+    Guid TenantId,
+    Guid PackageGroupId,
+    string Version,
+    string VersionCode,
+    string Publisher,
+    string DisplayName,
+    Guid FileTypeId,
+    string PackageType,
+    string PackageName,
+    string PackageState,
+    string Metadata,
+    string Icon,
+    long FileSize,
+    string SupportedDevices,
+    int NodeId,
     Guid Id,
     Guid CreatedById,
     DateTimeOffset CreatedOn,

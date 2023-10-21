@@ -28,7 +28,6 @@ public interface IConnectApiDeviceConfig
     [Put("/api/tenants/{tenantId}/device-config/devices/{deviceId}/pool")]
     Task<Device> AllocateUnassignedDevice(Guid tenantId, Guid deviceId, [Body] AllocateDeviceCommand command);
 
-
     [Get("/api/tenants/{tenantId}/device-config/configuration/node/{nodeId}")]
     Task<ApiResponse<List<DeviceConfiguration>>> GetConfigurationOnNode(Guid tenantId, int nodeId);
 
@@ -44,14 +43,23 @@ public interface IConnectApiDeviceConfig
     [Post("/api/tenants/{tenantId}/device-config/assetLink")]
     Task<ApiResponse<AddAssetToDeviceOrNodeResponse>> AddAssetToDeviceOrNode(Guid tenantId, [Body] AddAssetToDeviceOrNodeCommand command);
 
-
     [Post("/api/tenants/{tenantId}/device-config/Command/syncSelected")]
     Task<ApiResponse<AddAssetToDeviceOrNodeResponse>> SynchroniseSelectedOnDeviceOrNode (Guid tenantId, 
         [Body] SynchroniseSelectedCommand command);
 
+
+    [Get("/api/tenants/{tenantId}/device-config/package/device/{deviceId}")]
+    Task<List<PackageLinkResponse>> GetPackagesOnDevice(Guid tenantId, Guid deviceId);
+
+    [Get("/api/tenants/{tenantId}/device-config/package/node/{nodeId}")]
+    Task<List<PackageLinkResponse>> GetPackagesOnNode(Guid tenantId, int nodeId);
+
+    [Post("/api/tenants/{tenantId}/device-config/package")]
+    Task<PackageLinkResponse> AddPackageToDeviceOrNode(Guid tenantId, [Body] AddPackageToDeviceOrNodeCommand command);
+    
+    [Delete("/api/tenants/{tenantId}/device-config/package/{packageId}")]
+    Task<List<PackageLinkResponse>> DeletePackageLink(Guid tenantId, Guid packageId);
+
+
+
 }
-
-
-public record SynchroniseSelectedCommand(Guid TenantId, int? NodeId, Guid? DeviceId, int TTL = 6000, 
-    Guid[]? Assets = null, Guid[]? Firmwares = null, Guid[]? Applications = null,
-    Guid[]? Configs = null, Guid[]? Consents = null);

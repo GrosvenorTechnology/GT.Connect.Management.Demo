@@ -2,8 +2,8 @@ using Bogus;
 using GT.Connect.Management.Demo.ConnectApi.DeviceConfig;
 using GT.Connect.Management.Demo.ConnectApi.Organisation;
 using GT.Connect.Management.Demo.ConnectApi.People;
-using System.Runtime;
-using static System.Net.Mime.MediaTypeNames;
+using System;
+using System.Diagnostics;
 
 namespace GT.Connect.Management.Demo;
 
@@ -249,6 +249,86 @@ public class ApiDemos : ApiTestBase
         //Now send the policy to all devices under the company node.
         await api.SynchroniseSelectedOnDeviceOrNode(Settings.TenantId,
             new SynchroniseSelectedCommand(Settings.TenantId, cmpNode.Id, null, Configs: new[] { policy.Id }));
+    }
+
+    /// <summary>
+    /// This example will create a simple config file on a node and send it.
+    /// </summary>
+    /// <returns></returns>
+    [TestMethod]
+    public async Task UploadApplicationAndSendToDevice()
+    {
+        //Set this to the path of the GT8 application package
+        var appFileName = @"c:\tmp\gteasyclock-v2.8.0-gtconnect.zip";
+
+        //Note for simplicity we've hardcoded the FileTypeId here, but you can get them by
+        //  calling the /api/tenants/{{tenantId}}/device-config/fileTypes/family/{{deviceFamily}} or
+        //  /api/tenants/{{tenantId}}/device-config/fileTypes/deviceType/{{deviceType}} apis.
+        var gtApplicationFileType = new Guid("097C3986-BF3A-4E90-82EB-DE3FFD0FFB1B");
+        var policyName = "GT8 Application";
+
+        var api = await GetClient();
+
+        //Get the commpany node, this is where we want to send the policy
+        var cmpNode = (await api.GetNodes(Settings.TenantId,
+            new(new(nameof(NodeResponse.NodeType), NodeType.Company.ToString(), Operators.Equals))))
+            .Single(x => x.Name == "InGen");
+
+        var uploadUrl = await api.GetUploadPackageUrl(Settings.TenantId,
+            new GetUploadUrlCommand(Settings.TenantId, gtApplicationFileType, appFileName, "GT-EasyClock (2.8.0)"));
+
+        using var fileReader = new StreamReader(appFileName);
+        var client = new HttpClient();
+        var request = new HttpRequestMessage(HttpMethod.Put, uploadUrl.Url);
+        request.Content = new StreamContent(fileReader.BaseStream);
+        request.Headers.Add("x-ms-blob-type", "BlockBlob");
+        var uploadResponse = await client.SendAsync(request);
+
+        GetUploadStatusResponse statusResponse;
+        do
+        {
+            statusResponse = await api.GetUploadStatus(Settings.TenantId, uploadUrl.Id);
+            Debug.WriteLine(statusResponse.State);
+            await Task.Delay(1000);
+        } while (statusResponse.State != "Completed" && statusResponse.State != "Failed");
+        // InProgress / Processing / Completed / Failed / Uncompress / Moving / Uploading
+
+        if (statusResponse.State != "Completed")
+        {
+            Assert.Fail($"{statusResponse.State} : {statusResponse.FaultSummary}");
+        }
+
+        var response = await api.GetPackages(Settings.TenantId);
+        await response.EnsureSuccessStatusCodeAsync();
+
+        //The GetConfigurationOnNode function retuns a 204 if there is no content,
+        //  Refit does not like that when deserializing the response content, so have to check explicitly
+        GetPackagesResponse? package = default;
+        if (response.StatusCode == System.Net.HttpStatusCode.OK)
+        {
+            package = response.Content?.SingleOrDefault(x => x.FileTypeId == gtApplicationFileType && x.VersionCode == "2080004");
+            if (package is null)
+            {
+                Assert.Fail("Could not find package after upload");
+            }
+        }
+        else
+        {
+            Assert.Fail("Could not find package after upload");
+        }
+
+        var link = await api.AddPackageToDeviceOrNode(Settings.TenantId, 
+            new AddPackageToDeviceOrNodeCommand(Settings.TenantId, package.Id, cmpNode.Id, null, 
+            "GT EasyClock (2.8.0)", package.FileTypeId));
+
+        //Now send the policy to all devices under the company node.
+        var apiResponse = await api.SynchroniseSelectedOnDeviceOrNode(Settings.TenantId,
+            new SynchroniseSelectedCommand(Settings.TenantId, cmpNode.Id, null,
+            Applications: new[] { link.Id },
+            Assets: Array.Empty<Guid>(), //Note in early versions, all the arrays must be non null, fixed dec-2023
+            Configs: Array.Empty<Guid>(),
+            Consents: Array.Empty<Guid>(),
+            Firmwares: Array.Empty<Guid>()));
     }
 
 }
