@@ -248,7 +248,7 @@ public class ApiDemos : ApiTestBase
 
         //Now send the policy to all devices under the company node.
         await api.SynchroniseSelectedOnDeviceOrNode(Settings.TenantId,
-            new SynchroniseSelectedCommand(Settings.TenantId, cmpNode.Id, null, Configs: new[] { policy.Id }));
+            new SynchroniseSelectedCommand(Settings.TenantId, cmpNode.Id, null, Configs: [policy.Id]));
     }
 
     /// <summary>
@@ -265,7 +265,6 @@ public class ApiDemos : ApiTestBase
         //  calling the /api/tenants/{{tenantId}}/device-config/fileTypes/family/{{deviceFamily}} or
         //  /api/tenants/{{tenantId}}/device-config/fileTypes/deviceType/{{deviceType}} apis.
         var gtApplicationFileType = new Guid("097C3986-BF3A-4E90-82EB-DE3FFD0FFB1B");
-        var policyName = "GT8 Application";
 
         var api = await GetClient();
 
@@ -281,8 +280,10 @@ public class ApiDemos : ApiTestBase
         //Next we PUT the file to the server  
         using var fileReader = new StreamReader(appFileName);
         var client = new HttpClient();
-        var request = new HttpRequestMessage(HttpMethod.Put, uploadUrl.Url);
-        request.Content = new StreamContent(fileReader.BaseStream);
+        var request = new HttpRequestMessage(HttpMethod.Put, uploadUrl.Url)
+        {
+            Content = new StreamContent(fileReader.BaseStream)
+        };
         request.Headers.Add("x-ms-blob-type", "BlockBlob");  //the target is azure blob storage and needs this header
         var uploadResponse = await client.SendAsync(request);
 
@@ -326,12 +327,74 @@ public class ApiDemos : ApiTestBase
         //Now send the policy to all devices under the company node.
         var apiResponse = await api.SynchroniseSelectedOnDeviceOrNode(Settings.TenantId,
             new SynchroniseSelectedCommand(Settings.TenantId, cmpNode.Id, null,
-            Applications: new[] { link.Id },
-            Assets: Array.Empty<Guid>(), //Note in early versions, all the arrays must be non null, fixed dec-2023
-            Configs: Array.Empty<Guid>(),
-            Consents: Array.Empty<Guid>(),
-            Firmwares: Array.Empty<Guid>()));
+            Applications: [link.Id],
+            Assets: [], //Note in early versions, all the arrays must be non null, fixed dec-2023
+            Configs: [],
+            Consents: [],
+            Firmwares: []));
     }
 
+
+    /// <summary>
+    /// This test will find a device in the partner unallocated pool and transfer it to the company
+    /// assign it and add it to a clock group.
+    /// </summary>
+    /// <returns></returns>
+    [TestMethod]
+    public async Task RebootDevice()
+    {
+        var api = await GetClient();
+
+        //Get the root node, this is where unallocated devices start
+        var rootNode = (await api.GetNodes(Settings.TenantId,
+            new(new(nameof(NodeResponse.NodeType), NodeType.Partner.ToString(), Operators.Equals))))
+            .Single();
+
+        //Get the commpany node, this is where we want to send the device
+        var cmpNode = (await api.GetNodes(Settings.TenantId,
+            new(new(nameof(NodeResponse.NodeType), NodeType.Company.ToString(), Operators.Equals))))
+            .Single(x => x.Name == "InGen");
+
+        //find the devices on the root partner node
+        var apiResponse = await api.GetDevices(Settings.TenantId, rootNode.Id,
+            new(new(nameof(Device.SerialNumber), "fp-gt8~99990001", Operators.CaseInsensitiveStringEquals)));
+
+        if (apiResponse.StatusCode != System.Net.HttpStatusCode.OK)
+        {
+            // 204 is no devices, so have to check for OK
+            Assert.Fail($"No Devices Found, status code: {apiResponse.StatusCode}");
+        }
+
+        Assert.IsNotNull(apiResponse.Content, "There should be one device in the results");
+        var device = apiResponse.Content.Single();
+
+        //Allocate the device into the company node, this returns an updated device record
+        device = await api.AllocateUnassignedDevice(Settings.TenantId, device.Id,
+            new(device.Id, Settings.TenantId, cmpNode.Id));
+
+        //In this example we're just adding the device at the root of the company node,
+        //  but this could have been a structral node under the commpany
+        device = await api.AssignDevice(Settings.TenantId, device.Id, new(device.Id, Settings.TenantId, cmpNode.Id));
+
+        //Finally enable the device
+        //  It's important to supply all the fields currently, as the update operation
+        //  is a full record updated, we do not currently support patches.
+        //  To make this easier, we user a mapper here
+        var mapper = new MapperClasses();
+
+        if (device.IsEnabled == false)
+        {
+            var updateCommand = mapper.Map(device) with
+            {
+                IsEnabled = true,
+            };
+
+            var updateResponse = await api.UpdateDevice(updateCommand);
+        }
+
+
+        Assert.AreEqual("Company", device.NodeType);
+        Assert.AreEqual("Assigned", device.DeviceLifecycleState);
+    }
 }
 
