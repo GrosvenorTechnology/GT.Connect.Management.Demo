@@ -46,7 +46,7 @@ public interface IConnectApiPeople
     Task<ApiResponse<BaseModifiyableObject>> AddPersonToClockGroup(Guid tenantId, int nodeId, Guid clockGroupId, Guid personId);
 
     [Post("/api/tenants/{tenantId}/people/{nodeId}/clockGroup/{clockGroupId}/devices/{deviceId}")]
-    Task<ApiResponse<ClockGroupResponse>> AddDeviceToClockGroup(Guid tenantId, int nodeId, Guid clockGroupId, Guid deviceId);
+    Task<ClockGroupResponse> AddDeviceToClockGroup(Guid tenantId, int nodeId, Guid clockGroupId, Guid deviceId);
 
     [Get("/api/tenants/{tenantId}/people/{nodeId}/clockGroup/{clockGroupId}/members")]
     Task<ApiResponse<Page<PersonResponse>>> GetPeopleInGroup(Guid tenantId, int nodeId, Guid clockGroupId);
