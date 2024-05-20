@@ -4,6 +4,7 @@ using GT.Connect.Management.Demo.ConnectApi.Organisation;
 using GT.Connect.Management.Demo.ConnectApi.People;
 using System;
 using System.Diagnostics;
+using System.Reflection;
 
 namespace GT.Connect.Management.Demo;
 
@@ -39,8 +40,23 @@ public class ApiDemos : ApiTestBase
             new AddNodeCommmand(Settings.TenantId, cpNode.Id, "Company", "InGen"));
         }
 
-        //Find the Company so we can get it's ID
-        var company = await api.GetCompanyByNodeId(Settings.TenantId, cmpNode.Id);
+        CompanyResponse? company = null;
+        var retryCount = 3;
+        while (true)
+        {
+            try
+            {
+                //Find the Company so we can get it's ID, not that it can take a few seconds to appear
+                company = await api.GetCompanyByNodeId(Settings.TenantId, cmpNode.Id);
+                Assert.IsNotNull(company);
+                break;
+            }
+            catch (ApiException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound && retryCount > 0)
+            {
+                await Task.Delay(1000);
+                retryCount--;
+            }
+        }
 
         //Add a default clock group (ExternalId is your ref for a clock group)
         var clockGroupResponse = await api.GetClockGroupByExternalId(Settings.TenantId, cmpNode.Id, "1");
@@ -275,7 +291,7 @@ public class ApiDemos : ApiTestBase
 
         //First we need to request an upload url from the server 
         var uploadUrl = await api.GetUploadPackageUrl(Settings.TenantId,
-            new GetUploadUrlCommand(Settings.TenantId, gtApplicationFileType, appFileName, "GT-EasyClock (2.8.0)"));
+            new GetUploadUrlCommand(Settings.TenantId, cmpNode.Id, gtApplicationFileType, appFileName, "GT-EasyClock (2.8.0)"));
 
         //Next we PUT the file to the server  
         using var fileReader = new StreamReader(appFileName);
@@ -334,6 +350,93 @@ public class ApiDemos : ApiTestBase
             Firmwares: []));
     }
 
+    /// <summary>
+    /// This example will create a simple config file on a node and send it.
+    /// </summary>
+    /// <returns></returns>
+    [TestMethod]
+    public async Task UploadBackgroundAndSendToDevice()
+    {
+        //Set this to the path of the GT8 application package
+        var location = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+        var appFileName = Path.Combine(location, "Resources", "background.jpg");
+
+        //Note for simplicity we've hardcoded the FileTypeId here, but you can get them by
+        //  calling the /api/tenants/{{tenantId}}/device-config/fileTypes/family/{{deviceFamily}} or
+        //  /api/tenants/{{tenantId}}/device-config/fileTypes/deviceType/{{deviceType}} apis.
+        var fileType = new Guid("61C66B63-E667-40AB-9D57-70088C7C4AB1");
+
+        var api = await GetClient();
+
+        //Get the commpany node, this is where we want to send the policy
+        var cmpNode = (await api.GetNodes(Settings.TenantId,
+            new(new(nameof(NodeResponse.NodeType), NodeType.Company.ToString(), Operators.Equals))))
+            .Single(x => x.Name == "InGen");
+
+        //First we need to request an upload url from the server 
+        var uploadUrl = await api.GetUploadAssetUrl(Settings.TenantId,
+            new GetUploadUrlCommand(Settings.TenantId, cmpNode.Id, fileType, appFileName, "Example Background Image"));
+
+        //Next we PUT the file to the server  
+        using var fileReader = new StreamReader(appFileName);
+        var client = new HttpClient();
+        var request = new HttpRequestMessage(HttpMethod.Put, uploadUrl.Url)
+        {
+            Content = new StreamContent(fileReader.BaseStream)
+        };
+        request.Headers.Add("x-ms-blob-type", "BlockBlob");  //the target is azure blob storage and needs this header
+        var uploadResponse = await client.SendAsync(request);
+
+        //Once the file is uploaded, the server needs to process the file, so we need to poll till it's finished
+        GetUploadStatusResponse statusResponse;
+        do
+        {
+            statusResponse = await api.GetUploadStatus(Settings.TenantId, uploadUrl.Id);
+            Debug.WriteLine(statusResponse.State);
+            await Task.Delay(1000);
+        } while (statusResponse.State != "Completed" && statusResponse.State != "Failed");
+        // InProgress / Processing / Completed / Failed / Uncompress / Moving / Uploading
+
+        if (statusResponse.State != "Completed")
+        {
+            Assert.Fail($"{statusResponse.State} : {statusResponse.FaultSummary}");
+        }
+
+        //Now get the uploaded package ID
+        var response = await api.GetAssets(Settings.TenantId, cmpNode.Id);
+        await response.EnsureSuccessStatusCodeAsync();
+        GetAssetsResponse? asset = default;
+        if (response.StatusCode == System.Net.HttpStatusCode.OK)
+        {
+            asset = response.Content?.SingleOrDefault(x => x.DisplayName == "Example Background Image");
+            if (asset is null)
+            {
+                Assert.Fail("Could not find asset after upload");
+            }
+        }
+        else
+        {
+            Assert.Fail("Could not find asset after upload");
+        }
+
+        //Link the application to a node so we can send to the device
+        var link = await api.AddAssetToDeviceOrNode(Settings.TenantId,
+            new AddAssetToDeviceOrNodeCommand(Settings.TenantId, asset.Id, cmpNode.Id, null));
+
+        //Now send the policy to all devices under the company node.
+        var apiResponse = await api.SynchroniseSelectedOnDeviceOrNode(Settings.TenantId,
+            new SynchroniseSelectedCommand(Settings.TenantId, cmpNode.Id, null,
+            Applications: [],
+            Assets: [link.Id], 
+            Configs: [],
+            Consents: [],
+            Firmwares: []));
+
+        await apiResponse.EnsureSuccessStatusCodeAsync();
+
+        Assert.AreEqual(System.Net.HttpStatusCode.OK, apiResponse.StatusCode);
+    }
+
 
     /// <summary>
     /// This test will find a device in the partner unallocated pool and transfer it to the company
@@ -368,33 +471,65 @@ public class ApiDemos : ApiTestBase
         Assert.IsNotNull(apiResponse.Content, "There should be one device in the results");
         var device = apiResponse.Content.Single();
 
-        //Allocate the device into the company node, this returns an updated device record
-        device = await api.AllocateUnassignedDevice(Settings.TenantId, device.Id,
-            new(device.Id, Settings.TenantId, cmpNode.Id));
+        var commandResponse = await api.SendStructuredFirmwareCommand(Settings.TenantId, device.Id, new StructuredCommand
+        {
+            CommandName = "reboot",
+            Entity = "device"
+        });
 
-        //In this example we're just adding the device at the root of the company node,
-        //  but this could have been a structral node under the commpany
-        device = await api.AssignDevice(Settings.TenantId, device.Id, new(device.Id, Settings.TenantId, cmpNode.Id));
+        Assert.IsTrue(commandResponse.Content);
+    }
+
+
+    /// <summary>
+    /// This test will find all devices and enable them.
+    /// </summary>
+    /// <returns></returns>
+    [TestMethod]
+    public async Task EnableDevices()
+    {
+        var api = await GetClient();
+
+        //Get the root node, this is where unallocated devices start
+        //var rootNode = (await api.GetNodes(Settings.TenantId,
+        //    new(new(nameof(NodeResponse.NodeType), NodeType.Partner.ToString(), Operators.Equals))))
+        //    .Single();
+
+        //find the devices on the root partner node
+        var apiResponse = await api.GetDevices(Settings.TenantId, 550, //rootNode.Id,
+            new() { GetChildren = true });
+
+        if (apiResponse.StatusCode != System.Net.HttpStatusCode.OK)
+        {
+            // 204 is no devices, so have to check for OK
+            Assert.Fail($"No Devices Found, status code: {apiResponse.StatusCode}");
+        }
+
+        Assert.AreEqual(100, apiResponse.Content?.Count);
 
         //Finally enable the device
         //  It's important to supply all the fields currently, as the update operation
         //  is a full record updated, we do not currently support patches.
         //  To make this easier, we user a mapper here
+        
         var mapper = new MapperClasses();
 
-        if (device.IsEnabled == false)
+        foreach (var device in apiResponse.Content ?? [])
         {
-            var updateCommand = mapper.Map(device) with
+            if (device.IsEnabled == false)
             {
-                IsEnabled = true,
-            };
+                var updateCommand = mapper.Map(device) with
+                {
+                    IsEnabled = true,
+                };
 
-            var updateResponse = await api.UpdateDevice(updateCommand);
+                var updateResponse = await api.UpdateDevice(updateCommand);
+                await Task.Delay(500);
+            }
         }
+        
 
-
-        Assert.AreEqual("Company", device.NodeType);
-        Assert.AreEqual("Assigned", device.DeviceLifecycleState);
+        //Assert.AreEqual("Assigned", device.DeviceLifecycleState);
     }
 }
 

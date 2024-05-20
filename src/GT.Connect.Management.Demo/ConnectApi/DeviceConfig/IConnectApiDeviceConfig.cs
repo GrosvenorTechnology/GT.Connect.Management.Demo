@@ -41,12 +41,11 @@ public interface IConnectApiDeviceConfig
     Task<DeviceConfiguration> UpdateConfiguration(Guid tenantId, Guid configurationId, [Body] UpdateConfigurationCommand command);
 
     [Post("/api/tenants/{tenantId}/device-config/assetLink")]
-    Task<ApiResponse<AddAssetToDeviceOrNodeResponse>> AddAssetToDeviceOrNode(Guid tenantId, [Body] AddAssetToDeviceOrNodeCommand command);
+    Task<AddAssetToDeviceOrNodeResponse> AddAssetToDeviceOrNode(Guid tenantId, [Body] AddAssetToDeviceOrNodeCommand command);
 
     [Post("/api/tenants/{tenantId}/device-config/Command/syncSelected")]
-    Task<ApiResponse<AddAssetToDeviceOrNodeResponse>> SynchroniseSelectedOnDeviceOrNode (Guid tenantId, 
-        [Body] SynchroniseSelectedCommand command);
-
+    Task<ApiResponse<string>> SynchroniseSelectedOnDeviceOrNode (Guid tenantId,
+        [Body] SynchroniseSelectedCommand command);  //Not there is no response body of this command
 
     [Get("/api/tenants/{tenantId}/device-config/package/device/{deviceId}")]
     Task<List<PackageLinkResponse>> GetPackagesOnDevice(Guid tenantId, Guid deviceId);
@@ -60,6 +59,26 @@ public interface IConnectApiDeviceConfig
     [Delete("/api/tenants/{tenantId}/device-config/package/{packageId}")]
     Task<List<PackageLinkResponse>> DeletePackageLink(Guid tenantId, Guid packageId);
 
+    [Post("/api/tenants/{tenantId}/device-config/Command/structuredFirmwareCommand/{deviceId}")]
+    Task<ApiResponse<bool>> SendStructuredFirmwareCommand(Guid tenantId, Guid deviceId,
+        [Body] StructuredCommand command);
 
 
+
+}
+
+
+
+public class StructuredCommand
+{
+    public Guid MessageId { get; } = Guid.NewGuid();
+    public Guid CorrelationId { get; init; } = Guid.NewGuid();
+    public Guid? PreviousMessageId { get; init; } 
+    public DateTimeOffset TimeStamp { get; init; } = DateTimeOffset.UtcNow;
+    public TimeSpan Ttl { get; init; } = TimeSpan.FromMinutes(5);
+    public required string Entity { get; init; }
+    public required string CommandName { get; init; }
+    public Dictionary<string, string> Parameters { get; init; } = new Dictionary<string, string>();
+    public string RequestingEntity { get; init; } = "GtConnect:1";
+    public string PermissionedEntity { get; init; } = "";
 }

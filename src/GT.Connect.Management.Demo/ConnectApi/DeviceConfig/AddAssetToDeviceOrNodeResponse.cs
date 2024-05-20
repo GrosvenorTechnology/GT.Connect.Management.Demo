@@ -2,6 +2,7 @@
 
 public record AddAssetToDeviceOrNodeResponse
 (
+    Guid Id,
     Guid TenantId,
     Guid StorageReference,
     Guid? DeviceId,

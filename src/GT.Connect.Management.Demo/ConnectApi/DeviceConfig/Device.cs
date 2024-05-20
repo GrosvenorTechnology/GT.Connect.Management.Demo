@@ -16,6 +16,8 @@ public record Device
     bool AzIoTEnabled,
     string DeviceLifecycleState,
     string LegacyKey,
+    DateTimeOffset? PurchaseDate,
+    DateTimeOffset? ValidTo,
     string Features,
     string? BillingReference1,
     string? BillingReference2,

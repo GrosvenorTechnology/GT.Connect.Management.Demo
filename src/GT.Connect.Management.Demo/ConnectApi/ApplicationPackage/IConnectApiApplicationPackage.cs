@@ -14,8 +14,8 @@ public interface IConnectApiApplicationPackage
     [Get("/api/tenants/{tenantId}/app-package/Storage/status/{uploadId}")]
     Task<GetUploadStatusResponse> GetUploadStatus(Guid tenantId, Guid uploadId);
 
-    [Get("/api/tenants/{tenantId}/app-package/assets")]
-    Task<ApiResponse<List<GetAssetsResponse>>> GetAssets(Guid tenantId);
+    [Get("/api/tenants/{tenantId}/app-package/assets/node/{nodeId}")]
+    Task<ApiResponse<List<GetAssetsResponse>>> GetAssets(Guid tenantId, int nodeId);
 
     [Get("/api/tenants/{tenantId}/app-package/packages")]
     Task<ApiResponse<List<GetPackagesResponse>>> GetPackages(Guid tenantId);
@@ -25,6 +25,7 @@ public interface IConnectApiApplicationPackage
 public record GetUploadUrlCommand
 (
     Guid TenantId,
+    int nodeId,
     Guid FileTypeId,
     string FileName,
     string DisplayName
