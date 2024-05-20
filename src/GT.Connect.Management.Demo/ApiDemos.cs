@@ -1,4 +1,5 @@
 using Bogus;
+using Bogus.DataSets;
 using GT.Connect.Management.Demo.ConnectApi.DeviceConfig;
 using GT.Connect.Management.Demo.ConnectApi.Organisation;
 using GT.Connect.Management.Demo.ConnectApi.People;
@@ -444,8 +445,8 @@ public class ApiDemos : ApiTestBase
 
 
     /// <summary>
-    /// This test will find a device in the partner unallocated pool and transfer it to the company
-    /// assign it and add it to a clock group.
+    /// This example will send a reboot command to a device.
+    ///  This same method can be used to send restart/reconnect/reset commands.
     /// </summary>
     /// <returns></returns>
     [TestMethod]
@@ -496,12 +497,12 @@ public class ApiDemos : ApiTestBase
         var api = await GetClient();
 
         //Get the root node, this is where unallocated devices start
-        //var rootNode = (await api.GetNodes(Settings.TenantId,
-        //    new(new(nameof(NodeResponse.NodeType), NodeType.Partner.ToString(), Operators.Equals))))
-        //    .Single();
+        var rootNode = (await api.GetNodes(Settings.TenantId,
+            new(new(nameof(NodeResponse.NodeType), NodeType.Partner.ToString(), Operators.Equals))))
+            .Single();
 
         //find the devices on the root partner node
-        var apiResponse = await api.GetDevices(Settings.TenantId, 550, //rootNode.Id,
+        var apiResponse = await api.GetDevices(Settings.TenantId, rootNode.Id,
             new() { GetChildren = true });
 
         if (apiResponse.StatusCode != System.Net.HttpStatusCode.OK)
@@ -535,6 +536,52 @@ public class ApiDemos : ApiTestBase
         
 
         //Assert.AreEqual("Assigned", device.DeviceLifecycleState);
+    }
+
+    /// <summary>
+    /// This eaxmple will create a consent policy and assign it to a company
+    /// // and send it to all devices under the company node.
+    /// </summary>
+    /// <returns></returns>
+    [TestMethod]
+    public async Task CreateAndSendConsentPolicyForCompany()
+    {
+        var api = await GetClient();
+
+        //Get the commpany node, this is where we want to send the policy
+        var cmpNode = (await api.GetNodes(Settings.TenantId,
+            new(new(nameof(NodeResponse.NodeType), NodeType.Company.ToString(), Operators.Equals))))
+            .Single(x => x.Name == "InGen");
+
+        var company = await api.GetCompanyByNodeId(Settings.TenantId, cmpNode.Id);
+
+        //Create the consent policy
+        var consentCommand = new CreateConsentCommand(Settings.TenantId, cmpNode.Id, company.Id,
+            $"Api Demo Consent {DateTime.UtcNow:g}", new Guid("DBFF5D03-11CA-4539-C65A-08D97769F994"), 365, 30, 0);
+        var agreementResponse = await api.AddConsentAgreementToCompany(Settings.TenantId, cmpNode.Id, consentCommand);
+        await agreementResponse.EnsureSuccessStatusCodeAsync();
+        var agreeementId = agreementResponse.Content!.Id;
+
+        //Create an English consent text, you can add as many lanagues as you like
+        var consentTextCommand = new CreateConsentAgreementTextCommand(Settings.TenantId, cmpNode.Id,
+            agreeementId, "Api Demo Consent - EN", 
+            "EN", "This is the consent text for the Api Demo Consent");
+        var textResponse = await api.AddConsentTextToAgreement(Settings.TenantId, cmpNode.Id, 
+                consentTextCommand);
+        await textResponse.EnsureSuccessStatusCodeAsync();
+
+        //Now make the consent active on the company.
+        var linkReponse = await api.ActivateConsentOnCompany(Settings.TenantId, cmpNode.Id,
+            new ActivateConsentCommand(cmpNode.Id, agreeementId));
+
+        //Now send the policy to all devices under the company node.
+        var apiResponse = await api.SynchroniseSelectedOnDeviceOrNode(Settings.TenantId,
+            new SynchroniseSelectedCommand(Settings.TenantId, cmpNode.Id, null,
+            Applications: [],
+            Assets: [], 
+            Configs: [],
+            Consents: [linkReponse.Id],
+            Firmwares: []));
     }
 }
 

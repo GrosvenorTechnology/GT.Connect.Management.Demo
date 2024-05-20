@@ -50,6 +50,25 @@ public interface IConnectApiPeople
 
     [Get("/api/tenants/{tenantId}/people/{nodeId}/clockGroup/{clockGroupId}/members")]
     Task<ApiResponse<Page<PersonResponse>>> GetPeopleInGroup(Guid tenantId, int nodeId, Guid clockGroupId);
+
+    [Get("/api/tenants/{tenantId}/people/{nodeId}/consentAgreements")]
+    Task<ApiResponse<ConsentResponse>> GetConsentAgreementsOnCompanyNode(Guid tenantId, int nodeId);
+
+    [Post("/api/tenants/{tenantId}/people/{nodeId}/consentAgreements")]
+    Task<ApiResponse<ConsentResponse>> AddConsentAgreementToCompany(Guid tenantId, int nodeId,
+        [Body] CreateConsentCommand command);
+
+    [Post("/api/tenants/{tenantId}/people/{nodeId}/ConsentAgreementText")]
+    Task<ApiResponse<ConsentAgreementText>> AddConsentTextToAgreement(Guid tenantId, int nodeId,
+        [Body] CreateConsentAgreementTextCommand command);
+
+    [Post("/api/tenants/{tenantId}/people/{nodeId}/consentLinks")]
+    Task<ActivateConsenttResponse> ActivateConsentOnCompany(Guid tenantId, int nodeId,
+        [Body] ActivateConsentCommand command);
+
+    [Delete("/api/tenants/{tenantId}/people/{nodeId}/consentLinks")]
+    Task<bool> DeactivateConsentOnCompany(Guid tenantId, int nodeId,
+        [Body] DeactivateConsentCommand command);
 }
 
 
@@ -62,16 +81,11 @@ public class PeopleSeiveQueryParams
 public class Page<TEntity> where TEntity : BaseModifiyableObject
 {
     public List<TEntity> Payload { get; set; } = new();
-
     public int? PreviousPage { get; set; }
-
     public int? CurrentPage { get; set; }
-
     public int? NextPage { get; set; }
-
     public int? PageSize { get; set; }
-
     public int? TotalPages { get; set; }
-
     public int TotalItems { get; set; }
 }
+
