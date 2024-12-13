@@ -1,4 +1,5 @@
 ﻿using GT.Connect.Management.Demo.ConnectApi.DeviceConfig;
+using GT.Connect.Management.Demo.ConnectApi.Organisation;
 using Riok.Mapperly.Abstractions;
 
 namespace GT.Connect.Management.Demo;
@@ -21,6 +22,14 @@ public partial class MapperClasses
     [MapperIgnoreSource(nameof(Device.ChannelPartnerNodeId))]
     [MapperIgnoreSource(nameof(Device.CompanyNodeId))]
     [MapperIgnoreSource(nameof(Device.StructuralNodeId))]
+    [MapperIgnoreSource(nameof(Device.PurchaseDate))]
+    [MapperIgnoreSource(nameof(Device.ValidTo))]
     public partial UpdateDeviceCommand Map(Device device);
-    
+
+
+    [MapperIgnoreSource(nameof(NodeResponse.CreatedById))]
+    [MapperIgnoreSource(nameof(NodeResponse.CreatedOn))]
+    [MapperIgnoreSource(nameof(NodeResponse.LastModifiedById))]
+    [MapperIgnoreSource(nameof(NodeResponse.LastModifiedOn))]
+    public partial UpdateNodeCommmand Map(NodeResponse device);
 }

@@ -33,6 +33,9 @@ public interface IConnectApiPeople
     [Put("/api/tenants/{tenantId}/people/{nodeId}/{personId}")]
     Task<ApiResponse<PersonResponse>> UpdatePerson(Guid tenantId, int nodeId, Guid personId, [Body] PersonRequest person);
 
+    [Delete("/api/tenants/{tenantId}/people/{nodeId}/{personId}")]
+    Task<bool> DeletePerson(Guid tenantId, int nodeId, Guid personId);
+
     [Get("/api/tenants/{tenantId}/people/{nodeId}/clockGroups")]
     Task<ApiResponse<List<ClockGroupResponse>>> GetClockGroups(Guid tenantId, int nodeId);
 
@@ -69,8 +72,13 @@ public interface IConnectApiPeople
     [Delete("/api/tenants/{tenantId}/people/{nodeId}/consentLinks")]
     Task<bool> DeactivateConsentOnCompany(Guid tenantId, int nodeId,
         [Body] DeactivateConsentCommand command);
+
+    [Post("/api/tenants/{tenantId}/people/{nodeId}/command/ReplayTransactions")]
+    Task<ApiResponse<string>> ReplayTransactions(Guid tenantId, int nodeId,
+        [Body] ReplayTransactionsCommand command);
 }
 
+public record ReplayTransactionsCommand(Guid CommandId, Guid TenantId, int NodeId, List<Guid> TransactionIds);
 
 public class PeopleSeiveQueryParams
 {
